@@ -3,7 +3,8 @@
 #include <sstream>
 
 constexpr int default_minutes{ 3 };
-constexpr int default_seconds{ 3 };
+constexpr int default_seconds{ 0 };
+constexpr auto default_minimum = "1:00";
 
 struct level_time {
 	level_time() = default;
@@ -21,6 +22,9 @@ struct level_time {
 	}
 	int minutes{ default_minutes };
 	int seconds{ default_seconds };
+	int total_seconds() const {
+		return minutes * 60 + seconds;
+	}
 };
 
 struct stage {
@@ -30,11 +34,13 @@ struct stage {
 			level_c = ini_group->getString("Level C");
 			level_b = ini_group->getString("Level B");
 			level_a = ini_group->getString("Level A");
+			after_level_a = ini_group->getString("After Level A");
 		}
 	}
 	level_time level_c;
 	level_time level_b;
 	level_time level_a;
+	level_time after_level_a;
 };
 
 struct bosses {
@@ -56,6 +62,7 @@ struct config {
 	stage red_mountain;
 	stage hot_shelter;
 	bosses bosses;
+	level_time minimum_spawn_time{ default_minimum };
 };
 
 config cfg;
@@ -119,21 +126,33 @@ void apply_gamma_time(const char minutes, const char seconds) {
 		CurrentLevel,
 		0
 	);
-	// if c emblem is not unlocked, use timer for level c
+	// if level c emblem is not unlocked, use timer for level c
 	if (!emblems.c) {
 		TimeMinutes = stg->level_c.minutes;
 		TimeSeconds = stg->level_c.seconds;
 	}
-	// else, if b emblem is not unlocked, use timer for level b
+	// else, if level b emblem is not unlocked, use timer for level b
 	else if (!emblems.b) {
 		TimeMinutes = stg->level_b.minutes;
 		TimeSeconds = stg->level_b.seconds;
 	}
-	// else use timer for level a
-	else {
+	// else, if level a emblem is not unlocked, use timer for level a
+	else if (!emblems.a) {
 		TimeMinutes = stg->level_a.minutes;
 		TimeSeconds = stg->level_a.seconds;
 	}
+	// else use timer for after level a
+	else {
+		TimeMinutes = stg->after_level_a.minutes;
+		TimeSeconds = stg->after_level_a.seconds;
+	}
+}
+
+/// param minutes ignored
+/// param seconds ignored
+void reset_to_minimum_time(const char minutes, const char seconds) {
+	TimeMinutes = cfg.minimum_spawn_time.minutes;
+	TimeSeconds = cfg.minimum_spawn_time.seconds;
 }
 
 extern "C" {
@@ -152,8 +171,16 @@ extern "C" {
 			config_file.getGroup("Windy Valley"),
 			config_file.getGroup("Red Mountain"),
 			config_file.getGroup("Hot Shelter"),
-			config_file.getGroup("Bosses")
+			config_file.getGroup("Bosses"),
+			config_file.getString("All", "Minimum Spawn Time", default_minimum)
 		};
+
+		// set minimum spawn time
+		const uint8_t minimum_spawn_time{
+			static_cast<uint8_t>(cfg.minimum_spawn_time.total_seconds())
+		};
+		WriteData<1>(reinterpret_cast<void*>(0x414A36), minimum_spawn_time);
+		WriteCall(reinterpret_cast<void*>(0x414A3C), &reset_to_minimum_time);
 	}
 
 	__declspec(dllexport) ModInfo SADXModInfo { ModLoaderVer };
