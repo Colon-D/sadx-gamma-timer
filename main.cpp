@@ -181,6 +181,9 @@ extern "C" {
 		};
 		WriteData<1>(reinterpret_cast<void*>(0x414A36), minimum_spawn_time);
 		WriteCall(reinterpret_cast<void*>(0x414A3C), &reset_to_minimum_time);
+
+		// unfix time reset at level load for Gamma from Character Select Mod
+		WriteData<1>(reinterpret_cast<void*>(0x41486D), 0x75);
 	}
 
 	__declspec(dllexport) ModInfo SADXModInfo { ModLoaderVer };
